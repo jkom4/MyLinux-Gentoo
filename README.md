@@ -34,11 +34,11 @@ Avant de commencer, assurez-vous d'avoir les éléments suivants :
 
 Votre VM est prête à être lancée !
 
-### **Étape 2 : Installation de Gentoo**
+### **Étape 2 : Installation de Gentoo, compilation et configuration du noyau**
 Suivez les instructions dans le fichier `instructions.md` pour configurer un environnement minimal basé sur Gentoo, qui servira de base à la création de votre propre système d'exploitation.
 
-### **Étape 3 : Compilation et configuration du noyau**
-Une fois que l'installation de base est terminée, vous pouvez suivre le fichier `mykernel.md` pour commencer à configurer et compiler votre propre noyau Linux à partir des sources. Ce processus vous permettra d'adapter le noyau à vos besoins spécifiques.
+### **Étape 3 : Création d’un OS Linux à partir des sources
+Une fois que l'installation de base est terminée, vous pouvez suivre le fichier `myoslinux.md` pour commencer à configurer et compiler votre propre noyau Linux à partir des sources. Ce processus vous permettra d'adapter le noyau à vos besoins spécifiques.
 
 ### **Documentation Complémentaire**
 - [Gentoo Handbook - AMD64](https://wiki.gentoo.org/wiki/Handbook:AMD64) : La documentation officielle de Gentoo qui est la principale référence pour l'installation et la configuration de Gentoo.
