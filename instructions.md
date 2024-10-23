@@ -198,7 +198,7 @@ liste des configurations :
    ```bash
    exit
    umount -l /mnt/gentoo/dev{/shm,/pts}
-   umount -lR /mnt/gentoo
+   umount -R /mnt/gentoo
    reboot
    ```
 
