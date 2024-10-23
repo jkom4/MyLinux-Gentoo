@@ -33,7 +33,7 @@ Nous devons d'abord télécharger les fichiers sources nécessaires dans le rép
 3. **Busybox** :
 
    ```bash
-   wget https://busybox.net/downloads/busybox-1.34.0.tar.bz2 -P /usr/src
+   wget https://busybox.net/downloads/busybox-1.32.0.tar.bz2 -P /usr/src
    ```
 
 ### II. Création du FHS (Filesystem Hierarchy Standard)
@@ -86,13 +86,13 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
 1. Décompresser Busybox :
 
    ```bash
-   tar -xvjf /usr/src/busybox-1.34.0.tar.bz2 -C /usr/src
+   tar -xvjf /usr/src/busybox-1.32.0.tar.bz2 -C /usr/src
    ```
 
 2. Configurer et compiler :
 
    ```bash
-   cd /usr/src/busybox-1.34.0
+   cd /usr/src/busybox-1.32.0
    make menuconfig
    make -j2
    make CONFIG_PREFIX=/mnt/monlinux install
@@ -170,7 +170,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
 3. Configurer le noyau avec `menuconfig`, puis compiler :
 
    ```bash
-   make menuconfig (Faire la même config que dans gentoo voir instructions.md)
+   make menuconfig #Faire la même config que dans gentoo voir instructions.md
    make -j2
    ```
 
