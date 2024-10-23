@@ -80,7 +80,8 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    make -j2
    make install_root=/mnt/monlinux install
    ```
-
+   debut de la compilation glibc : 18:13:44
+   fin de la compilation glibc : 19:31:16
 ### IV. Compilation et installation de Busybox
 
 1. Décompresser Busybox :
@@ -97,7 +98,8 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    make -j2
    make CONFIG_PREFIX=/mnt/monlinux install
    ```
-
+   debut de la compilation busybox : 20:14:30
+   fin de la compilation busybox : 20:16:13
 ### V. Création des fichiers de configuration
 
 1. Créer le fichier `passwd` :
@@ -173,7 +175,8 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    make menuconfig #Faire la même config que dans gentoo voir instructions.md
    make -j2
    ```
-
+   debut de la compilation kernel : 21:19:46
+   fin de la compilation kernel : 22:00:45
 4. Copier le noyau dans la partition de démarrage :
 
    ```bash
@@ -197,7 +200,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    Exemple d'entrée :
 
    ```bash
-   linux /boot/kernel-linux-6.6.54-<hostname> root=/dev/sda5 console=tty0 rootfstype=ext4 ro
+   linux /boot/kernel-linux-6.6.54-<hostname> root=/dev/sda5 console=tty0 console=ttyS1 rootfstype=ext4 ro
    ```
 
 ---
@@ -211,11 +214,7 @@ Pour activer la console **TTY1** et capturer les sorties de démarrage :
 
 Cela permet de capturer les messages de la console, utiles pour diagnostiquer des erreurs de démarrage.
 
-Une fois configuré, vous pouvez redémarrer la VM et utiliser votre nouveau noyau. Si des problèmes apparaissent (par exemple, pas de `hostname` ou mauvais clavier), vérifiez votre script de démarrage `/etc/rc`, assurez-vous qu'il est correctement configuré et possède les droits d'exécution :
-
-```bash
-chmod +x /mnt/monlinux/etc/rc
-```
+Une fois configuré, vous pouvez redémarrer la VM et utiliser votre nouveau noyau. Si des problèmes apparaissent (par exemple, pas de `hostname` ou mauvais clavier), vérifiez votre script de démarrage `/etc/rc`
 
 ---
 ---
