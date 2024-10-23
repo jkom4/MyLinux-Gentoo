@@ -194,20 +194,24 @@ liste des configurations :
 
 ## **9. Finalisation et démarrage du SSH**
 
-1. **Activer le DHCP et SSH au démarrage :**
-   ```bash
-   emerge dhcpcd
-   systemctl enable dhcpcd
-   systemctl start sshd
-   systemctl enable ssh
-   ```
-
-2. **Créer un snapshot de la VM avant de redémarrer :**
+1. **Créer un snapshot de la VM avant de redémarrer :**
    ```bash
    exit
    umount -l /mnt/gentoo/dev{/shm,/pts}
    umount -lR /mnt/gentoo
    reboot
    ```
+
+2. **Activer le DHCP et SSH au redémarrage :**
+   ```bash
+   rm /etc/vconsole.conf   
+   systemd-firstboot --prompt-keymap  #Pour configurer le clavier 
+   systemctl enable dhcpcd
+   systemctl start sshd
+   systemctl enable ssh
+   dhcpcd  #pour configurer le service
+   ```
+
+
 
 ---
