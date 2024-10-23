@@ -170,7 +170,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
 3. Configurer le noyau avec `menuconfig`, puis compiler :
 
    ```bash
-   make menuconfig
+   make menuconfig (Faire la même config que dans gentoo voir instructions.md)
    make -j2
    ```
 
@@ -197,9 +197,8 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    Exemple d'entrée :
 
    ```bash
-   linux /boot/kernel-linux-6.6.54-<hostname> root=/dev/sda5 console=tty0 rootfstype=ext4 rw
+   linux /boot/kernel-linux-6.6.54-<hostname> root=/dev/sda5 console=tty0 rootfstype=ext4 ro
    ```
-Voici une version résumée à ajouter à ton fichier GitHub :
 
 ---
 
