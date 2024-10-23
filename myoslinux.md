@@ -151,7 +151,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
 
    ```bash
    ::sysinit:/etc/rc
-   tty1::respawn:/bin/ash -l
+   tty1:3:respawn:/bin/ash -l
    ```
 
 ### VI. Compilation du noyau
