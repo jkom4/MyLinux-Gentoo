@@ -232,6 +232,7 @@ Nous sommes maintenant prêts à compiler le noyau. Il est conseillé de noter l
    make install
    make modules_install
    ```
+   Debut compilation 14:19:24  Fin : 14:37:19
 ---
 
 Voici une version traduite et reformulée en français pour intégrer dans votre README :
