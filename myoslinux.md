@@ -53,6 +53,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    ```bash
    mkdir -p /mnt/monlinux/{bin,boot,dev,etc,home,lib64,mnt,proc,root,sbin,sys,tmp,usr,var}
    mkdir -p /mnt/monlinux/usr/{bin,include,lib64,local,sbin,src,share}
+   mkdir -p /mnt/mylinux/usr/localcd make
    mkdir -p /mnt/monlinux/usr/share/man/{man1,man2,man3,man4,man5,man6,man7,man8}
    mkdir -p /mnt/monlinux/var/{lock,log,run,spool}
    ln -s /usr/share/man /mnt/monlinux/usr/man
@@ -80,8 +81,8 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    make -j2
    make install_root=/mnt/monlinux install
    ```
-   debut de la compilation glibc : 18:13:44
-   fin de la compilation glibc : 19:31:16
+   debut de la compilation glibc : 23:00:25
+   fin de la compilation glibc : 23:25:00
 ### IV. Compilation et installation de Busybox
 
 1. Décompresser Busybox :
@@ -98,8 +99,8 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    make -j2
    make CONFIG_PREFIX=/mnt/monlinux install
    ```
-   debut de la compilation busybox : 20:14:30
-   fin de la compilation busybox : 20:16:13
+   debut de la compilation busybox : 23:30:54
+   fin de la compilation busybox : 23:31:46
 ### V. Création des fichiers de configuration
 
 1. Créer le fichier `passwd` :
@@ -175,12 +176,12 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
    make menuconfig #Faire la même config que dans gentoo voir instructions.md
    make -j2
    ```
-   debut de la compilation kernel : 21:19:46
-   fin de la compilation kernel : 22:00:45
+   debut de la compilation kernel : 00:00:54
+   fin de la compilation kernel : 00:16:25
 4. Copier le noyau dans la partition de démarrage :
 
    ```bash
-   cp /usr/src/linux-6.6.54/arch/x86/boot/bzImage /boot/kernel-linux-6.6.54-monlinux
+   cp /usr/src/linux-6.6.54/arch/x86/boot/bzImage /boot/kernel-linux-6.6.54-NOMFAMILLE
    ```
 
 ### VII. Configuration de GRUB
@@ -188,6 +189,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
 1. Mettre à jour `grub.cfg` :
 
    ```bash
+   mkdir /boot/grub # Si le repertoire n'existe pas
    grub-mkconfig -o /boot/grub/grub.cfg
    ```
 
