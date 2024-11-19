@@ -50,10 +50,11 @@ Voici le texte que tu peux copier directement dans un fichier `.md` pour GitHub 
    - **w** : Enregistrer les modifications.
 
    **Exemple de partitions créées :**
-   - `/dev/sda1` : FAT32 (100 Mo pour UEFI).
-   - `/dev/sda2` : FAT32 (boot).
-   - `/dev/sda3` : Swap (mémoire de swap).
-   - `/dev/sda4` : ext4 (partition pour le système).
+   - `/dev/sda1` : 100M EFI system (100 Mo pour UEFI).
+   - `/dev/sda2` : 200M Linux filesystem (boot).
+   - `/dev/sda3` : 2G Linux swap (mémoire de swap).
+   - `/dev/sda4` : 20G Linux filesystem (partition pour le système).
+   - `/dev/sda5` : 2.7G Linux filesystem
 
 ---
 
@@ -64,7 +65,7 @@ Voici le texte que tu peux copier directement dans un fichier `.md` pour GitHub 
    mkfs.vfat -F32 /dev/sda1  # UEFI
    mkfs.vfat -F32 /dev/sda2  # Boot
    mkswap /dev/sda3  # Swap
-   mkfs.ext4 -T small /dev/sda4  # Partition système
+   mkfs.ext4 -T small /dev/sda4  # Partition système (-T small veut dire qu'il va prévoir un nombre de fichiers très grand car on utilisera beaucoup de petit fichier sinon à la base il calcul le nombre de fichier logique pour la taille de la partition)
    ```
 2. **Monter les partitions :**
    ```bash
@@ -141,33 +142,91 @@ Voici le texte que tu peux copier directement dans un fichier `.md` pour GitHub 
    eselect locale list
    eselect locale set 5  # Sélectionner la langue
    ```
-
+4. ** Recharger avec le nouvel environnement : **
+    ```bash
+   env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
+   ```
 ---
 
 ## **7. Compilation et installation du noyau**
 
-1. **Télécharger les sources du noyau :**
+1. **Configuration matérielle et outils de base :**
+```bash
+emerge --ask sys-apps/pciutils #Installe l'outil lspci, qui permet d'inspecter le matériel PCI (cartes graphiques, cartes réseau, etc.).
+ ```
+```bash
+emerge --ask sys-apps/usbutils # Installe l'outil lsusb, pour détecter et afficher les périphériques connectés aux ports USB.
+ ```
+```bash
+lspci -k # Affiche les périphériques PCI et les pilotes associés actuellement chargés.
+ ```
+```bash
+lsusb # Liste les périphériques USB connectés.
+ ```
+```bash
+lsmod # Affiche les modules (pilotes) actuellement chargés dans le noyau.
+ ```
+
+2. **Télécharger les sources du noyau :**
    ```bash
    emerge --ask sys-kernel/gentoo-sources
    cd /usr/src/linux
    make menuconfig  # Configurer les options du noyau
    ```
-liste des configurations :
-    Gentoo Linux > Support > support for init > systemd
-    Device drivers > Generic driver options > Maintain a devtmpfs filesystem to mount at /dev
-    skip NMVE (we don't have it)
-    Enable the block layer > partition type > advanced > EFI GUID partition support
-    File system > DOS/FAT/MSDOS > check the 2 NTFS
-    Device drivers > Firmware drivers > EFI > check the following... - EFI Runtime config interface table version 2 - EFI bootloader control - EFI capsule loader - EFI Runtime service tests support
-    Device drivers > Fusion MPT > check Fustion MPT SCI Host drivers for SPI
-    Device drivers > Graphic support > Framebuffer devices > support for frame buffer device > EFI based frame buffer support (enable it)
-    Device drivers > SCSI device support > SCSI low-level drivers > VMware PVSCSI driver support
-    Device drivers > MISC devices > VMware MCI driver
-    Processor type and features > EFI runtime service support > EFI stub support > disable (space)
-    Device Drivers > Graphics support > Console display driver support > Framebuffer Console support (enable)
-    File systems > FUSE (Filesystem in Userspace) support
-    File systems > Pseudo filesystems > EFI Variable filesystem
-2. **Compiler et installer le noyau :**
+---
+
+# Kernel Configuration for Gentoo Linux
+
+Below is the complete list of required kernel configuration options. Use `make menuconfig` to access the configuration interface and apply these settings:
+
+```bash
+# File Systems
+File systems → FUSE (Filesystem in Userspace) support
+File systems → DOS/FAT/EXFAT/NT Filesystems → NTFS filesystem support
+File systems → DOS/FAT/EXFAT/NT Filesystems → NTFS read-write filesystem support
+File systems → Pseudo filesystems → EFI Variable filesystem
+
+# Partition Types
+Enable the block layer → Partition Types → Advanced partition selection
+
+# Firmware Drivers
+Device Drivers → Firmware Drivers → EFI → EFI Bootloader Control
+Device Drivers → Firmware Drivers → EFI → EFI capsule loader
+Device Drivers → Firmware Drivers → EFI → EFI Runtime Service Tests support
+
+# Fusion MPT Device Support
+Device Drivers → Fusion MPT device support
+Device Drivers → Fusion MPT device support → Fusion MPT ScsiHost drivers for SPI
+
+# Graphics Support
+Device Drivers → Graphics support → Frame buffer Devices → Support for frame buffer device drivers
+Device Drivers → Graphics support → Frame buffer Devices → EFI-based Framebuffer Support
+
+# SCSI Device Support
+Device Drivers → SCSI device support → SCSI low-level drivers → VMware PVSCSI driver support
+
+# Miscellaneous Drivers
+Device Drivers → Misc devices → VMware VMCI Driver
+
+# Init Systems
+Gentoo Linux → Support for init systems, system, and service managers → systemd
+```
+
+À la fin de la configuration, il est important de vérifier si le support pour "FUSION MPT" est activé :
+
+```bash
+cat .config | grep FUSION # Vérifiez si 'CONFIG_FUSION=y' est présent
+cat .config | grep CONFIG_FRAMEBUFFER_CONSOLE # Vérifiez si le framebuffer console est activé
+```
+
+Nous sommes maintenant prêts à compiler le noyau. Il est conseillé de noter l'heure avant et après la compilation pour calculer le temps total nécessaire.
+
+> **Note :** Cette compilation va générer des fichiers objets qui occuperont temporairement plus de 10 Go d'espace disque. À la fin, le fichier exécutable du noyau (binaire compacté) ne fera qu'environ 10 Mo.
+
+--- 
+
+
+3. **Compiler et installer le noyau :**
    ```bash
    make -j2
    make install
@@ -175,43 +234,141 @@ liste des configurations :
    ```
 ---
 
-## **8. Installation du bootloader (GRUB)**
+Voici une version traduite et reformulée en français pour intégrer dans votre README :
 
-1. **Installer et configurer GRUB :**
+---
+
+# Étapes après la compilation du noyau
+
+Le fichier exécutable du noyau est généré dans :  
+`/usr/src/linux-6.6.47-gentoo/arch/x86/boot/bzImage`
+1. Installez les utilitaires nécessaires :  
    ```bash
-   echo 'GRUB_PLATFORMS="efi-64"' >> /etc/portage/make.conf
-   emerge sys-boot/grub
-   grub-install --target=x86_64-efi --efi-directory=/efi
-   grub-mkconfig -o /boot/grub/grub.cfg
+   emerge sys-kernel/installkernel
+   emerge dracut
    ```
-
-2. **Créer un nom pour le système :**
+2. Modifiez le fichier de configuration pour l'installation du noyau :  
    ```bash
-   echo 'mon_gentoo' > /etc/hostname
+   nano /usr/lib/kernel/install.conf
+   ```
+   - Modifiez :  
+     ```
+     layout=grub
+     initrd_generator=dracut
+     ```
+     - Ne modifiez pas les autres options.
+
+3. Modifiez le fichier `fstab` :  
+   ```bash
+   nano /etc/fstab
+   ```
+   - Exemple de configuration :  
+     ```
+     /dev/sda4  /      ext4   defaults,noatime  0 1
+     /dev/sda3  none   swap   sw                0 0
+     ```
+
+---
+
+### 3. Donner un nom à votre système
+```bash
+echo NOMFAMILLE > /etc/hostname
+```
+
+---
+
+### 4. Configurer un client DHCP
+1. Installez le client DHCP :  
+   ```bash
+   emerge dhcpcd
+   ```
+2. Configurez le mot de passe root :  
+   ```bash
+   passwd
    ```
 
 ---
 
-## **9. Finalisation et démarrage du SSH**
+### 5. Configurer le chargeur de démarrage GRUB
+1. Créez le répertoire EFI :  
+   ```bash
+   mkdir -p /efi/EFI/Gentoo
+   ```
 
-1. **Créer un snapshot de la VM avant de redémarrer :**
+2. Ajoutez la prise en charge EFI dans les options de compilation :  
+   ```bash
+   echo 'GRUB_PLATFORMS="efi-64"' >> /etc/portage/make.conf
+   emerge sys-boot/grub
+   ```
+
+3. Installez GRUB :  
+   ```bash
+   grub-install --target=x86_64-efi --efi-directory=/efi --removable
+   ```
+
+4. Vérifiez la présence des fichiers :  
+   ```bash
+   cd /efi/EFI/BOOT
+   cd /boot/grub
+   ```
+
+5. Copiez le noyau généré :  
+   ```bash
+   cp /usr/src/linux-6.6.47-gentoo/arch/x86/boot/bzImage /boot/kernel-6.6.54-NOMFAMILLE
+   uname -a
+   ```
+
+6. Générer la configuration de GRUB :  
+   ```bash
+   grub-mkconfig -o /boot/grub/grub.cfg
+   ```
+
+---
+
+### 6. Faire une sauvegarde avant de redémarrer
+Prenez un snapshot ou sauvegardez votre configuration actuelle pour éviter toute perte de données.
+
+---
+
+### 7. Redémarrer le système
+1. Quittez l'environnement de chroot :  
    ```bash
    exit
-   umount -l /mnt/gentoo/dev{/shm,/pts}
-   umount -R /mnt/gentoo
+   cd
+   umount -l /mnt/gentoo/dev{/shm,/pts,}
+   umount -lR /mnt/gentoo
    reboot
    ```
 
-2. **Activer le DHCP et SSH au redémarrage :**
+---
+
+### 8. Configurations post-démarrage
+1. Connectez-vous avec les identifiants suivants :  
+   - **Utilisateur** : `root`  
+   - **Mot de passe** : `YOURPASSWORD2024`  
+     > ⚠️ Le clavier est en **QWERTY** par défaut.
+
+2. Supprimez la configuration de la console virtuelle :  
    ```bash
-   rm /etc/vconsole.conf   
-   systemd-firstboot --prompt-keymap  #Pour configurer le clavier 
-   systemctl enable dhcpcd
-   systemctl start sshd
-   systemctl enable ssh
-   dhcpcd  #pour configurer le service
+   rm /etc/vconsole.conf
    ```
 
+3. Configurez le clavier :  
+   ```bash
+   systemd-firstboot --prompt-keymap
+   ```
 
+4. Activer DHCP :  
+   ```bash
+   systemctl enable dhcpcd
+   ```
+
+5. Démarrer le serveur SSH :  
+   ```bash
+   systemctl start sshd
+   systemctl enable sshd
+   ```
+
+Votre système est maintenant prêt à être utilisé.
 
 ---
