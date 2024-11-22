@@ -95,7 +95,7 @@ Nous allons créer le système de fichiers sur `/dev/sda5`, puis monter cette pa
 
    ```bash
    cd /usr/src/busybox-1.32.0
-   make menuconfig
+   make menuconfig # juste pour save les configurations
    make -j2
    make CONFIG_PREFIX=/mnt/monlinux install
    ```
