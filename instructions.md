@@ -201,7 +201,7 @@ Device Drivers → Fusion MPT device support → Fusion MPT ScsiHost drivers for
 # Graphics Support
 Device Drivers → Graphics support → Frame buffer Devices → Support for frame buffer device drivers
 Device Drivers → Graphics support → Frame buffer Devices → EFI-based Framebuffer Support
-
+Device Drivers → Graphics support → Console display driver support → Framebuffer Console support
 # SCSI Device Support
 Device Drivers → SCSI device support → SCSI low-level drivers → VMware PVSCSI driver support
 
