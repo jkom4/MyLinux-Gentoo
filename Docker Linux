@@ -1,0 +1,207 @@
+##### Etape 4 - Installation de Docker sur votre VM Gentoo
+
+### 1. Créer un lien symbolique vers ton noyau personnel
+
+Créer un lien symbolique pour faciliter les manipulations :
+
+```bash
+ln -s /usr/src/linux-6.X.Y /usr/src/linux
+```
+
+Cela crée un lien symbolique nommé `/usr/src/linux` qui pointe vers le répertoire de ton noyau personnel.
+### 2. Vérifier la configuration du noyau pour Docker
+
+Avant d'installer Docker, il faut s'assurer que ton noyau personnel est configuré pour supporter Docker. Voici les fonctionnalités nécessaires :
+
+- **Namespaces** (utilisateurs, montages, PID, réseau, IPC)
+- **Cgroups** (Groupes de contrôle pour limiter l'utilisation des ressources)
+- **OverlayFS** (pour la gestion du système de fichiers)
+
+Pour vérifier cela, tu peux exécuter les commandes suivantes dans ton répertoire de configuration du noyau (en supposant que c'est `/usr/src/linux-6.X.Y`) :
+
+```bash
+cd /usr/src/linux-6.X.Y
+make menuconfig
+```
+
+Ensuite, active les options suivantes :
+
+---
+
+```bash
+# General Setup
+General setup --->
+  [*] POSIX Message Queues
+  [*] BRF subsystem
+  [*] Enable bpf() system call
+
+# Control Group Support
+Control Group support --->
+  [*] Memory controller
+  [*] IO controller
+  [*] CPU controller --->
+      [*] Group scheduling for SCHED_OTHER
+      [*] CPU bandwidth provisioning for FAIR_GROUP_SCHED
+      [*] Group scheduling for SCHED_RR/FIFO
+  [*] PIDs controller
+  [*] Freezer controller
+  [*] HugeTLB controller
+  [*] Cpuset controller
+      [*] Include legacy /proc/<pid>/cpuset file
+  [*] Device controller
+  [*] Simple CPU accounting controller
+  [*] Perf controller
+  [*] Support for eBPF programs attached to cgroups
+
+# Namespaces Support
+Namespaces support --->
+  [*] UTS namespace
+  [*] IPC namespace
+  [*] User namespace
+  [*] PID Namespaces
+  [*] Network namespace
+
+# Block Layer
+Enable the block layer --->
+  [*] Block layer bio throttling support
+
+# Networking Support
+Networking support --->
+  Networking options --->
+    [*] Network packet filtering framework (Netfilter) --->
+        [*] Advanced netfilter configuration
+        <*> Bridge IP/ARP packets filtering
+        Core Netfilter Configuration --->
+          <*> TFTP protocol support
+          <*> Netfilter connection tracking support
+          *** Xtables matches ***
+          <*> "addrtype" address type match support
+          <*> "conntrack" connection tracking match support
+          <*> "ipvs" match support
+          <*> IP virtual server support --->
+              *** IPVS transport protocol load balancing support ***
+              [*] TCP load balancing support
+              [*] UDP load balancing support
+              *** IPVS scheduler ***
+              <M> round-robin scheduling
+          [*] Netfilter connection tracking
+    IP: Netfilter Configuration --->
+        <*> IP tables support (required for filtering/masq/NAT)
+        <*> Packet filtering
+        <*> iptables NAT support
+        <*> MASQUERADE target support
+        <*> NETMAP target support
+        <*> REDIRECT target support
+        <*> IP : ESP Transformation
+    <*> 802.1Q/802.1ad VLAN support
+    <*> 802.1d Ethernet Bridging
+    [*] VLAN filtering
+    [*] QoS and/or fair queueing --->
+        <*> Control Group Classifier
+        [*] L3 Master device support
+        [*] Network priority cgroup
+        -*- Network classid cgroup
+
+# Device Drivers
+Device Drivers --->
+  [*] Multiple devices driver support (RAID and LVM) --->
+      <*> Device mapper support
+      <*> Thin provisioning target
+  [*] Network device support --->
+      [*] Network core driver support
+      <*> Dummy net driver support
+      <*> MAC-VLAN support
+      <*> IP-VLAN support
+      <*> Virtual eXtensible Local Area Network (VXLAN)
+      <*> Virtual ethernet pair device
+
+# Character Devices
+Character devices --->
+  -*- Enable TTY
+
+# File Systems
+File systems --->
+  <*> Overlay filesystem support
+Pseudo filesystems --->
+  [*] HugeTLB file system support
+
+# Security Options
+Security options --->
+  [*] Enable access key retention support
+  [*] Enable register of persistent per-UID keyrings
+  <*> ENCRYPTED KEYS
+  [*] Diffie-Hellman operations on retained keys
+```
+
+Sauvegarde et compile ton noyau si des modifications ont été faites.
+
+
+### 3. Compiler et installer les modules du noyau
+
+Si tu ne l'as pas encore fait, compile ton noyau et installe les modules :
+
+```bash
+make -j2 && make modules_install
+```
+
+Cela va créer le noyau et installer les modules dans le répertoire `/lib/modules/6.X.Y`.
+
+### 2. Copier le noyau et le renommer
+
+Une fois la compilation terminée, copie le fichier binaire du noyau (`vmlinuz`) en le renommant avec "Docker" et ton nom de famille pour le différencier. En supposant que le noyau est dans le répertoire courant et que ta partition de démarrage est montée sur `/boot`, exécute la commande suivante :
+
+```bash
+cp arch/x86/boot/bzImage /boot/vmlinuz-Docker-<ton_nom>
+```
+
+(Remplace `<ton_nom>` par ton nom de famille.)
+
+### 3. Modifier le fichier de configuration de GRUB
+
+Ensuite, modifie le fichier `grub.cfg` pour ajouter une entrée pour ce nouveau noyau. Ouvre le fichier `/boot/grub/grub.cfg` avec ton éditeur de texte préféré et ajoute une nouvelle section comme celle-ci :
+
+```plaintext
+menuentry "Gentoo Linux - Docker - <ton_nom>" {
+    set root=(hd0,1)  # Remplace par la bonne partition si nécessaire ici gpt2
+    linux /boot/vmlinuz-Docker-<ton_nom> root=/dev/sdXY ro 
+}
+```
+
+Remplace :
+
+- `<ton_nom>` par ton nom de famille.
+- `/dev/sdXY` par la partition racine de ton système (par exemple, `/dev/sda4 car c'est la que on a la partition systeme Gentoo).
+
+### 4. Redémarrer et tester
+
+Après avoir enregistré les modifications dans `grub.cfg`, redémarre la machine et, dans le menu GRUB, sélectionne l'entrée avec "Docker" et ton nom de famille. Cela devrait charger le noyau que tu viens de configurer spécialement pour Docker.
+
+### 5. **Installer Docker et les utilitaires associés** :
+
+
+```bash
+    emerge app-containers/docker app-containers/docker-cli app-containers/docker-compose
+    ```
+    
+> _Note :_ Si des erreurs apparaissent, cela pourrait être lié à une configuration manquante dans votre noyau. Dans ce cas, il faudra vérifier que les modules pour les cgroups, namespaces, et autres fonctionnalités nécessaires à Docker sont activés dans le kernel et recompiler au besoin.
+    
+2. **Activer Docker au démarrage** : Pour que Docker démarre automatiquement à chaque démarrage du système :
+    
+    ```bash
+    systemctl enable docker
+    ```
+    
+3. **Redémarrer le système** pour appliquer les changements :
+    
+    ```bash
+    reboot
+    ```
+    
+4. **Vérifier l’installation de Docker** : Après le redémarrage, lancez une commande pour tester l'accès aux images Docker. Par exemple, pour rechercher l'image Ubuntu :
+    
+    ```bash
+    docker search ubuntu
+    ```
+    
+
+Si cette dernière commande retourne des résultats, cela confirme que Docker est installé et fonctionne correctement sur votre système.
