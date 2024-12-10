@@ -1,0 +1,421 @@
+## Premier exercice
+Pour l'exercice avec le conteneur Nginx, suivez ces étapes :
+
+1. **Recherchez l'image Nginx sur Docker Hub** (pour confirmer sa disponibilité) :
+    
+    ```bash
+    docker search nginx
+    ```
+    
+2. **Téléchargez (pull) l'image Nginx** :
+    
+    ```bash
+    docker pull nginx
+    ```
+    
+3. **Lancez le conteneur Nginx** : Utilisez les options `--name` pour nommer le conteneur, `-p 8080:80` pour rediriger le port 80 du conteneur vers le port 8080 de votre VM Gentoo, et `-d` pour lancer le conteneur en arrière-plan.
+    
+    ```bash
+    docker run --name mon_nginx -p 8080:80 -d nginx
+    ```
+    
+4. **Testez l'accès à la page d'accueil de Nginx** : Ouvrez un navigateur sur une autre machine du réseau ou faites un test en ligne de commande avec `curl` pour accéder à l'IP de votre VM Gentoo sur le port 8080 :
+    
+    ```bash
+    curl http://<IP_de_votre_VM>:8080
+    ```
+    
+    Vous devriez voir la page d'accueil par défaut de Nginx, confirmant que le conteneur fonctionne correctement.
+    
+5. **Arrêtez et supprimez le conteneur** :
+    
+    - Pour arrêter le conteneur Nginx :
+        
+        ```bash
+        docker stop mon_nginx
+        ```
+        
+    - Pour supprimer le conteneur Nginx :
+        
+        ```bash
+        docker rm mon_nginx
+        ```
+        
+
+Ces étapes permettent d’installer, d’exécuter, de tester et de nettoyer le conteneur Nginx.
+
+## Introduction aux dockerfiles
+
+Pour ce premier Dockerfile, voici les étapes à suivre pour créer votre image Docker personnalisée et lancer un conteneur basé sur cette image :
+
+1. **Créez un répertoire pour le Dockerfile** :
+    
+    ```bash
+    mkdir -p /root/FirstDockerFile
+    cd /root/FirstDockerFile
+    ```
+    
+2. **Éditez le Dockerfile** :  
+    Utilisez un éditeur de texte comme `nano` ou `vi` pour créer le fichier Dockerfile avec les instructions nécessaires. Voici un exemple du contenu pour une image de base Alpine :
+    
+    ```dockerfile
+    FROM alpine
+    LABEL image created by KOMWABO Jobelin
+    RUN apk add --no-cache nano
+    ```
+    
+    Ce Dockerfile :
+    
+    - Utilise `alpine` comme image de base.
+    - Ajoute un label pour indiquer l'auteur de l'image.
+    - Installe `nano` dans l'image Alpine.
+3. **Construisez votre image Docker** : Dans le répertoire contenant le Dockerfile, exécutez la commande suivante pour construire l’image personnalisée :
+    
+    ```bash
+    docker build -t myimage-komwabo:1.0 .
+    ```
+    
+4. **Lancez un conteneur basé sur cette image** : Utilisez la commande suivante pour démarrer un conteneur interactif basé sur votre image :
+    
+    ```bash
+    docker run --name MyContainer --rm -it myimage-komwabo:1.0 /bin/ash
+    ```
+    
+    Vérifiez dans le conteneur :
+    
+    - Que `nano` est bien installé en lançant `nano`.
+        
+    - Que le conteneur peut se connecter à internet en utilisant `ping` vers une adresse externe, par exemple :
+        
+        ```bash
+        ping google.com
+        ```
+        
+    - Vérifiez la version du noyau en utilisant :
+        
+        ```bash
+        uname -a
+        ```
+        
+5. **Quittez et relancez le conteneur en arrière-plan** : Pour relancer le conteneur en mode détaché (-d), exécutez :
+    
+    ```bash
+    docker run --name MyContainer --rm -it -d myimage-komwabo:1.0 /bin/ash
+    ```
+    
+6. **Accédez au conteneur en mode interactif** : Connectez-vous au conteneur en cours d'exécution avec :
+    
+    ```bash
+    docker exec -it MyContainer /bin/ash
+    ```
+    
+
+### Exemple de Dockerfile pour une image Ubuntu ou Debian
+
+Si vous utilisez une image de base Ubuntu ou Debian, modifiez le Dockerfile comme suit :
+
+```dockerfile
+FROM ubuntu
+LABEL image created by KOMWABO Jobelin
+RUN apt-get update && apt-get install -y nano
+```
+
+La procédure de construction et d'exécution de l'image reste identique à celle d'Alpine.
+
+
+### 5.2 Une application web de chat multi-containers
+
+Pour réaliser cette application web de chat en multi-containers avec Docker, voici les étapes détaillées :
+
+#### 1. Créer l'arborescence de fichiers et le réseau
+
+Dans votre dossier de projet, créez trois répertoires pour organiser les composants de votre application, ainsi qu’un réseau Docker personnalisé :
+
+```bash
+mkdir frontendKOMWABO backendKOMWABO databaseKOMWABO
+docker network create --driver bridge KOMWABO_network
+```
+Un réseau **bridge** dans Docker est un type de réseau virtuel utilisé pour connecter des conteneurs entre eux et avec l'hôte de manière isolée. C'est le réseau par défaut utilisé par Docker lorsque vous créez un conteneur sans spécifier explicitement un autre type de réseau.
+#### 2. Dockerfile et configuration pour chaque composant
+
+#### Base de données (MongoDB)
+
+1. Dans le dossier `databaseKOMWABO`, créez un fichier Dockerfile pour MongoDB :
+    
+    **Dockerfile** (MongoDB)
+    
+    ```dockerfile
+    FROM mongo
+    RUN apt-get update && apt-get install -y iproute2 iputils-ping
+    EXPOSE 27017
+    ```
+    
+2. Créez un utilisateur MongoDB à l'initialisation en utilisant un script.
+    
+    **init-mongo.js**
+    
+    ```javascript
+    db.createUser({
+       user: "chatUser",
+       pwd: "KOMWABOpassword",
+       roles: [{ role: "readWrite", db: "chatdb" }]
+    });
+    ```
+    
+3. Modifiez le Dockerfile pour inclure ce script d'initialisation :
+    
+    ```dockerfile
+    COPY init-mongo.js /docker-entrypoint-initdb.d/
+    ```
+    
+
+#### Backend (Node.js)
+
+Dans le dossier `backendKOMWABO`, ajoutez les fichiers de base `package.json` et `server.js` pour le serveur Node.js.
+
+1. **Dockerfile** (Backend)
+    
+    ```dockerfile
+    FROM node:14
+    WORKDIR /app
+	COPY package.json /app/
+	COPY server.js /app/
+    RUN apt-get update && apt-get install -y iproute2 iputils-ping
+    RUN npm install
+	EXPOSE 3000
+    CMD ["node", "server.js"]
+    ```
+
+#### Frontend (Nginx)
+
+Dans le dossier `frontendKOMWABO`, ajoutez les fichiers de base `index.html` et `nginx.conf` pour le frontend Nginx.
+
+1. **Dockerfile** (Frontend)
+    
+    ```dockerfile
+    FROM nginx:1.27.1
+    WORKDIR /usr/share/nginx/html
+    COPY index.html .
+    COPY nginx.conf /etc/nginx/nginx.conf
+    RUN apt-get update && apt-get install -y iproute2 iputils-ping
+    EXPOSE 80
+    ```
+    
+2. Exemple de `nginx.conf` pour configurer le reverse proxy :
+    
+    ```nginx
+    proxy_pass http://backend:3000;
+	Replace by :
+	proxy_pass http://backendKOMWABO:3000;
+    ```
+    
+3. Exemple de index.html pour configurer le reverse proxy :
+    
+    ```nginx
+    const ws = new WebSocket(´ws://backend:3000/ws’);
+	Replace by :
+	const ws = new WebSocket(´ws://<your-ip>:3000/ws’);
+    ```
+    
+#### 3. Construire les images Docker
+
+Exécutez les commandes de construction des images dans chaque répertoire :
+
+```bash
+docker build -t databasekomwabo:1.0 databaseKOMWABO
+docker build -t backendkomwabo:1.0 backendKOMWABO
+docker build -t frontendkomwabo:1.0 frontendKOMWABO
+```
+
+#### 4. Lancer les containers
+
+1. **Base de données** :
+    
+    ```bash
+    docker run -d --name databaseKOMWABO --network KOMWABO_network MONGO_INITDB_ROOT_USERNAME=admin -e      MONGO_INITDB_ROOT_PASSWORD=KOMWABOpassword -d databasekomwabo:1.0
+    ```
+    
+2. **Backend** (Node.js) :
+    
+    ```bash
+    docker run -d --name backendKOMWABO --network KOMWABO_network MONGO_URI="mongodb://admin:KOMWABOpassword@databaseKOMWABO:27017" -p 3000:3000 -d backendkomwabo:1.0
+    ```
+    
+3. **Frontend** (Nginx) :
+    
+    ```bash
+    docker run -d --name frontendKOMWABO --network KOMWABO_network -p 8080:80 komwabo-frontend
+    ```
+    
+
+#### 5. Vérifier l’application
+
+Vous pouvez accéder à l'application en ouvrant votre navigateur et en entrant `http://<IP_VM_Gentoo>:8080`. Cette configuration utilise le conteneur `frontendKOMWABO` pour diriger les requêtes vers `backendKOMWABO`.
+
+#### 6. Ajouter un conteneur d'authentification (OAuth2 Proxy)
+
+Pour l’authentification, vous pouvez utiliser l’image `oauth2-proxy` :
+
+- Pour cela créer un nouveau répertoire : 
+
+```bash
+mkdir -p OAuth2KOMWABO
+```
+
+- Installer les dépendances : 
+```bash
+emerge app-admin/apache-tools
+```
+
+- Je crée les crédenciales que je mets dans un fichier .htpasswd
+```bash
+htpasswd -nbB jobelin.komwabo@student.hepl.be
+gentoo > ./oauth2KOMWABO/.htpasswd
+```
+
+- Modifier le `MyFirstDockerComposeFile.yaml` ( faire l'étape docker compose et compléter avec ceci ) 
+```bash
+   oauth:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    container_name: "oauthkomwabo"
+    ports:
+      - "80:4180"
+    environment:
+      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+      - OAUTH2_PROXY_PROVIDER=gitlab
+      - OAUTH2_PROXY_OIDC_ISSUER_URL=http://dummy.com/
+      - OAUTH2_PROXY_OIDC_JWKS_URL=http://dummy.com/
+      - OAUTH2_PROXY_CLIENT_ID=client_id
+      - OAUTH2_PROXY_CLIENT_SECRET=client_secret
+      - OAUTH2_PROXY_UPSTREAMS=http://frontendKOMWABO:80/
+      - OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY=true
+      - OAUTH2_PROXY_COOKIE_SECRET=12345678901234567890123456789000
+      - OAUTH2_PROXY_COOKIE_SECURE=false
+      - OAUTH2_PROXY_COOKIE_PATH=/
+      - OAUTH2_PROXY_COOKIE_DOMAINS=".localhost.com"
+      - OAUTH2_PROXY_HTPASSWD_FILE=/etc/oauth2-proxy/.htpasswd
+      - OAUTH2_PROXY_SKIP_OIDC_DISCOVERY=true
+    volumes:
+      - ./oauth2KOMWABO/.htpasswd:/etc/oauth2-proxy/.htpasswd:ro
+    networks:
+      - KOMWABO_network
+```
+
+
+- Supprimez les images et les recréer puis relancer le docker compose
+
+L’objectif ici est d’apprendre à utiliser Docker Compose pour automatiser la création et la gestion de votre application multi-containers. Suivez les étapes ci-dessous pour configurer et exécuter votre projet avec **Docker Compose**.
+
+---
+### 5.3 Introduction à l’outil Docker Compose
+#### Étape 1 : Installation de Docker Compose sur Gentoo
+
+Installez Docker Compose via la commande suivante :
+
+```bash
+sudo emerge app-containers/docker-compose
+```
+
+#### Étape 2 : Écrire le fichier `docker-compose.yaml`
+
+Dans le dossier racine de votre projet (`~/MyDockerComposeApp`), créez un fichier nommé `docker-compose.yaml` :
+
+```yaml
+version: "1.0"
+services:
+  frontend:
+    image: "frontendkomwabo:1.0"
+    container_name: "frontendKOMWABO"
+    ports:
+      - "8080:80"
+    networks:
+      - komwabo-network
+
+  backend:
+    image: "backendkomwabo:1.0"
+    container_name: "backendKOMWABO"
+    environment:
+       MONGO_URI: mongodb://admin:KOMWABOpassword@databaseKOMWABO:27017
+    ports:
+      - "3000:3000"
+    networks:
+      - komwabo-network
+
+  database:
+    image: "databasekomwabo:1.0"
+    container_name: "databaseKOMWABO"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=KOMWABOpassword
+    ports:
+      - "27017:27017"
+    networks:
+      - komwabo-network
+    volumes:
+	  - mongodb_data:/data/db
+
+networks:
+  komwabo-network:
+    driver: bridge
+
+volumes: 
+	mongodb_data: 
+		driver: local
+```
+
+---
+#### Étape 4 : Construire et lancer l’application
+
+Lancez l’ensemble des containers définis dans votre fichier `docker-compose.yaml` :
+
+```bash
+docker-compose -f MyFirstDockerComposeFile.yaml up -d
+```
+
+Vérifiez que les containers sont actifs :
+
+```bash
+docker ps
+```
+
+---
+
+#### Étape 6 : Tester l’application
+
+1. **Frontend** : Ouvrez un navigateur et accédez à `http://<IP-de-votre-VM>:8080`.
+2. **Backend** : Vous pouvez envoyer des requêtes à l’API backend sur le port 3000.
+3. **Base de données** : Vérifiez que MongoDB est opérationnel en vous connectant avec un outil comme `mongo` ou en exécutant des commandes depuis un container.
+
+---
+
+#### Étape 7 : Test de l’option `--scale`
+
+Vous pouvez tester l’option de scaling en démarrant plusieurs instances du backend :
+
+```bash
+docker-compose up -d --scale backendKOMWABO=2
+```
+
+	pour diviser la charge du backend en 2 conteneurs ATTENTION : pour ce faire, nous devons supprimer le nom du conteneur dans le fichier yaml ainsi que le port 3000. Nous devons également supprimer dans l'index.html le port :3000 dans la const ws.
+
+Vérifiez que plusieurs containers backend sont actifs :
+
+```bash
+docker ps
+```
+
+---
+
+#### Étape 8 : Arrêter et supprimer l’application
+
+Arrêtez tous les containers et libérez les ressources associées :
+
+```bash
+docker-compose down
+```
+
+---
+
+### Étape suivante : Introduction à Kubernetes
+
+Docker Compose est utile pour gérer des applications locales ou petites. Pour des besoins d'orchestration plus complexes (scalabilité, haute disponibilité, gestion multi-serveurs), nous utiliserons Kubernetes dans le prochain laboratoire.
