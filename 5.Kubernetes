@@ -1,0 +1,566 @@
+## Étape 1 : Configuration du PC
+
+- Sur ma machine Windows
+		Ceci  est fait sur l'interface correspondant a ethernet
+![[Pasted image 20241204114107.png]]
+
+ - Sur VmWare 
+	   Creer une nouvelle interface (Network Adapter 2)
+	   > mettre en custom => VmNet0
+	   > Edit > virtual network Editor  > mettre VmNetO en bridged sur le port connecté
+---
+
+## Étape 2 : Connexion **master node** 
+
+#### 1. Connectez vous au **master node** avec SSH :
+
+```bash
+ssh user@192.168.2.210
+```
+
+Vérifiez l'état du cluster et les services du master node :
+
+```bash
+kubectl get pods --all-namespaces
+```
+
+Tous les services doivent être en mode **Running**. Si certains services ne fonctionnent pas, il pourrait y avoir un problème de configuration à corriger.
+
+---
+
+#### 2 : Génération de la commande `join`
+
+Générez la commande pour connecter les **worker nodes** au cluster :
+
+```bash
+kubeadm token create --print-join-command
+```
+	
+La commande générée ressemblera à ceci :
+
+```bash
+kubeadm join 192.168.2.210:6443 --token tecesy.4ahzssfi2pke0o0m --discovery-token-ca-cert-hash sha256:137c5889bafa0313f050faef16f6cca776e38b99957d57635239599cd15521fe
+```
+
+
+Copiez cette commande, car vous devrez l'utiliser sur chaque worker node.
+
+---
+
+#### 3 : Connexion des **worker nodes**
+
+Connectez-vous à chaque **worker node** (192.168.2.211 et 192.168.2.212) avec SSH :
+
+```bash
+ssh user@192.168.2.211
+```
+
+Exécutez la commande `join` que vous avez copiée depuis le master node :
+
+```bash
+sudo kubeadm join 192.168.2.210:6443 --token <token> --discovery-token-ca-cert-hash sha256:<hash>
+```
+
+Répétez cette opération pour **192.168.2.212**.
+
+---
+
+#### 4 : Vérification des **worker nodes**
+
+Revenez sur le **master node** et vérifiez que les **worker nodes** ont rejoint le cluster :
+
+```bash
+kubectl get nodes
+```
+
+Les deux **worker nodes** (192.168.2.211 et 192.168.2.212) devraient apparaître dans la liste avec un statut "NotReady". Cela signifie qu'ils sont en train de se synchroniser avec le cluster.
+
+Attendez que leur statut passe à **Ready**. Cela peut prendre quelques minutes.
+
+---
+
+#### 5 : Validation du cluster Kubernetes
+
+Une fois que tous les nœuds sont en mode **Ready**, exécutez la commande suivante pour vérifier la configuration globale du cluster :
+
+```bash
+kubectl get nodes -o wide
+```
+
+Cette commande affichera des informations détaillées sur chaque nœud, comme leur adresse IP et leur rôle dans le cluster (master ou worker).
+
+---
+Pour gérer votre cluster Kubernetes et effectuer les tâches décrites dans cette étape, voici une méthode structurée et les commandes nécessaires pour chaque partie :
+
+---
+## **Étape 3 : Environnement de stockage.** 
+
+Voici les étapes détaillées pour configurer un stockage persistant pour MongoDB avec un serveur NFS et Kubernetes :
+
+---
+
+### **1. Configuration du serveur NFS sur 192.168.2.202**
+
+1. **Modification du fichier `/etc/exports` :**
+    
+    - Connexion en ssh au 202 :
+        
+        ```bash
+       ssh admin@192.168.2.202
+        ```
+    
+	- Ajoutez une entrée pour permettre l'accès aux machines de votre cluster (192.168.2.X) :
+	  
+	     ```bash
+	   sudo chmod 777 /etc/exports 
+	   sudo echo "/mnt/mongo-komwabo 192.168.2.0/24(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
+		sudo chmod 644 /etc/export
+        ```
+
+1. **Création du répertoire pour MongoDB :**
+    
+    - Créez le répertoire avec les permissions appropriées :
+        
+        ```bash
+	   mkdir -p /mnt/mongo-komwabo
+        ```
+        - **Explication des options :**
+        - `rw` : Accès en lecture/écriture.
+        - `sync` : Synchronisation des données immédiatement sur le disque.
+        - `no_subtree_check` : Désactive la vérification des sous-arbres, ce qui améliore les performances.
+        - `no_root_squash` : Permet au client d’agir avec des privilèges root.
+3. **Redémarrage du service NFS :**
+    
+    - Appliquez les modifications :
+        
+        ```bash
+        exportfs -a
+        systemctl restart nfs-kernel-server
+        ```
+        
+
+---
+
+### **2. Transfert des données MongoDB**
+
+1. Identifiez le chemin des données MongoDB sur votre machine Gentoo :
+    
+    - Recherchez le répertoire correspondant dans Docker :
+        
+        ```bash
+        docker volume ls
+        docker inspect <nom_du_volume> # multicontainerapp_mongodb_data
+        ```
+        
+    - Par exemple : `/var/lib/docker/volumes/multicontainerapp_mongodb_data/_data`.
+2. Copiez les données vers le serveur NFS :
+    
+
+    - Copiez les données MongoDB dans le répertoire partagé :
+        
+        ```bash
+        scp /var/lib/docker/volumes/multiContainerapp_mongodb_data/_data/* admin@192.168.2.202:/mnt/mongo-komwabo
+
+        ```
+    
+---
+
+### **3. Configuration dans Kubernetes** 
+
+1. **Définir un PersistentVolume (PV) :**
+    
+    - Créez un fichier `nfs-pv.yaml` :
+        
+        ```yaml
+        apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+          name: mongo-pv
+        spec:
+          capacity:
+            storage: 10Mi
+          accessModes:
+            - ReadWriteMany
+          nfs:
+            path: /mnt/mongo-dupont
+            server: 192.168.2.202
+        ```
+        
+2. **Définir un PersistentVolumeClaim (PVC) :**
+    
+    - Créez un fichier `nfs-pvc.yaml` :
+        
+        ```yaml
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: mongo-pvc
+        spec:
+          accessModes:
+            - ReadWriteMany
+          resources:
+            requests:
+              storage: 10Mi # il doit être <= storage pv
+        ```
+        
+---
+ 
+    - **Vérification des volumes :**
+        
+        ```bash
+        kubectl get pv
+        kubectl get pvc
+        ```
+        
+    - **Vérification du pod MongoDB :**
+        
+        ```bash
+        kubectl get pods
+        kubectl logs <nom_du_pod_mongodb>
+        ```
+        
+3. **Test de persistance :**
+    
+    - Supprimez le pod MongoDB et relancez-le pour vérifier que les données sont toujours présentes.
+
+---
+
+Avec cette configuration, MongoDB utilisera le stockage persistant NFS, ce qui garantit que les données ne seront pas perdues même si le pod est recréé. 😊
+
+
+## **Étape 4 : Création d’une private registry pour vos containers**
+
+Voici un guide étape par étape pour effectuer ces opérations.
+
+---
+### **1. Démarrer la registry locale sur `192.168.2.202`**
+
+Sur le serveur Linux `192.168.2.202`, démarrez le conteneur Docker pour la registry locale :
+
+```bash
+sudo docker run -d -p 5000:5000 --restart=always --name registry registry:2
+```
+
+---
+
+### **2. Exporter les images de vos conteneurs**
+
+Sur votre machine(**# sur le Gentoo**) , sauvegardez vos images Docker locales (`frontend`, `backend`, `authentication`, `database`) en fichiers tar avec la commande `docker save`.
+
+Exemple pour chaque image :
+
+
+```bash
+docker images # pour voir les images
+docker save -o frontend.tar frontendkomwabo
+docker save -o backend.tar backendkomwabo
+docker save -o oauth.tar oauthkomwabo 
+docker save -o database.tar databasekomwabo 
+```
+
+---
+
+### **3. Transférer les images vers `192.168.2.202`**
+
+Utilisez `scp` pour transférer ces fichiers vers le serveur :
+
+```bash
+scp frontend.tar backend.tar oauth.tar database.tar admin@192.168.2.202:/mnt/mongo-komwabo 
+```
+
+
+---
+
+### **4. Charger les images sur `192.168.2.202`**
+
+Connectez-vous au serveur `192.168.2.202` et chargez les fichiers tar comme images Docker :
+
+```bash
+sudo docker load < /mnt/mongo-komwabo/frontend.tar
+sudo docker load < /mnt/mongo-komwabo/backend.tar
+sudo docker load < /mnt/mongo-komwabo/oauth.tar 
+sudo docker load < /mnt/mongo-komwabo/database.tar
+```
+
+---
+
+### **5. Taguer les images pour la registry locale**
+
+Appliquez un nouveau tag à chaque image pour qu'elles pointent vers la registry locale :
+
+```bash
+docker tag frontendkomwabo:1.0 localhost:5000/frontendkomwabo
+docker tag backendkomwabo:1.0 localhost:5000/backendkomwabo
+docker tag authenticationkomwabo:1.0 localhost:5000/oauthkomwabo
+docker tag databasekomwabo:1.0 localhost:5000/databasekomwabo
+```
+
+---
+
+### **6. Pousser les images dans la registry locale**
+
+Envoyez les images vers la registry locale avec `docker push` :
+
+```bash
+sudo docker push localhost:5000/frontendkomwabo
+sudo docker push localhost:5000/backendkomwabo
+sudo docker push localhost:5000/oauthkomwabo
+sudo docker push localhost:5000/databasekomwabo
+```
+
+---
+
+### **7. Configurer le cluster Kubernetes pour la registry locale**
+
+Sur **chaque nœud** du cluster Kubernetes : **211 & 212**
+
+1. **Modifier le fichier `/etc/containerd/config.toml`** :  
+    Ajoutez à la fin du fichier les configurations pour permettre l'accès à la registry.
+    
+    ```toml
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."192.168.2.202:5000"]
+      endpoint = ["http://192.168.2.202:5000"]
+    
+    [plugins."io.containerd.grpc.v1.cri".registry.insecure]
+      endpoint = ["192.168.2.202"]
+    ```
+    
+2. **Redémarrer `containerd`** sur chaque noeuds :
+    
+    ```bash
+    sudo systemctl restart containerd
+    ```
+    
+
+---
+
+### **8. Déploiement des pods avec des fichiers YAML**
+
+Créez des fichiers YAML pour chacun des composants de votre application : **frontend**, **backend**, et **base de données MongoDB**. Voici un exemple pour chaque composant.
+#### **1. Création du secret**
+
+Créez un secret pour stocker le mot de passe de MongoDB :
+
+```bash
+kubectl create secret generic secret-password --from-literal=MONGO_DB_PASSWORD=KOMWABOpassword
+```
+
+- **Explication :**
+    - `mongo-dupont-secret` : Nom du secret.
+    - `MONGO_DB_PASSWORD` : Clé qui contient la valeur du mot de passe.
+
+Pour vérifier que le secret a été créé correctement :
+
+```bash
+kubectl get secret
+kubectl describe secret mongo-dupont-secret
+```
+#### **2. Fichier Yaml  **
+#### **MongoDB YAML**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-deployment
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: 192.168.2.202:5000/databasekomwabo
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "chatUser"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "KOMWABOpassword"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name:  secret-password
+              key: MONGO_DB_PASSWORD
+        volumeMounts:
+        - mountPath: /data/db
+          name: mongo-storage
+      volumes:
+      - name: mongo-storage
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+  type: ClusterIP
+```
+- **Clés importantes :**
+    - `valueFrom` : Récupère la valeur d'une clé dans un secret Kubernetes.
+    - `name: mongo-dupont-secret` : Nom du secret.
+    - `key: MONGO_DB_PASSWORD` : Clé à extraire du secret.
+#### **Backend YAML**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: 192.168.2.202:5000/backendkomwabo
+        ports:
+        - containerPort: 3000
+        env:
+        - name: DB_USERNAME
+          value: "admin"
+        - name: DB_PASSWORD
+          value: "password"
+        - name: DB_HOST
+          value: "mongodb-service"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+```
+
+#### **Frontend YAML**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 192.168.2.202:5000/frontendkomwabo
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort
+```
+
+---
+
+### **4. Application des fichiers YAML**
+
+Déployez vos composants sur le cluster Kubernetes :
+
+```bash
+kubectl apply -f nfs-pv.yaml
+kubectl apply -f nfs-pvc.yaml
+kubectl apply -f mongodb-deployment.yaml
+kubectl apply -f backend-deployment.yaml
+kubectl apply -f frontend-deployment.yaml
+```
+
+---
+
+### **5. Vérification des services et accès**
+
+1. Vérifiez que les pods fonctionnent :
+    
+    ```bash
+    kubectl get pods
+    ```
+    
+2. Vérifiez les services créés :
+    
+    ```bash
+    kubectl get service
+    ```
+    
+    Notez le port exposé pour le frontend (type `NodePort`, généralement >= 30000). Vous pourrez accéder à votre application via :  
+    `http://<IP_MASTER_NODE>:<PORT>`
+    
+
+---
+
+### **6. Gestion des pods et des déploiements** (Optionnel)
+
+1. **Vérification des logs d’un pod :**
+    
+    ```bash
+    kubectl logs <pod_name>
+    ```
+    
+2. **Simulation d’un crash de pod :**
+    
+    ```bash
+    kubectl delete pod <pod_name>
+    ```
+    
+    Kubernetes redémarrera automatiquement un nouveau pod grâce au déploiement.
+    
+3. **Scaling des pods :** Augmentez ou diminuez le nombre de pods du backend :
+    
+    ```bash
+    kubectl scale deployment backend-deployment --replicas=3
+    ```
+    
+4. **Exposition externe :** Si vous voulez exposer le backend via un LoadBalancer :
+    
+    ```bash
+    kubectl expose deployment/backend-deployment --type=LoadBalancer --port=3000
+    ```
+    
