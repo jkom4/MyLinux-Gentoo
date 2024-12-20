@@ -1,0 +1,189 @@
+# Etape 3. Création d’une clé USB bootable contenant votre propre système GNU Linux.
+
+Pour rendre la clé USB bootable avec **Syslinux** et y transférer votre système minimal, suivez les étapes ci-dessous :
+
+Pour installer **Syslinux** en vue de rendre la clé USB bootable, voici les étapes :
+
+1. **Téléchargement des sources de Syslinux**
+        
+```bash
+        wget http://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz -P /usr/src
+```
+        
+2. **Extraction et transfert vers Gentoo** :
+    
+    - Une fois téléchargé, extrayez-le dans le répertoire `/usr/src` de votre système Gentoo avec :
+        
+        ```bash
+        tar -xzf /usr/src/syslinux-6.03.tar.gz -C /usr/src
+        ```
+        
+
+Ces étapes permettent de préparer le bootloader léger **Syslinux** pour l’intégration et la configuration sur la clé USB.
+### 1. Partitionnement de la Clé USB
+
+1. **Lancez `fdisk` sur la clé USB** (assurez-vous de bien identifier le périphérique, ici on suppose qu'il s'agit de `/dev/sdb`) :
+    
+    ```bash
+    fdisk /dev/sdb
+    ```
+    
+2. **Passez en mode GPT** : appuyez sur `g` pour créer une nouvelle table de partitions GPT.
+    
+3. **Créez les trois partitions** :
+    
+    - **Partition 1** : pour le boot EFI
+        
+        - Appuyez sur `n` pour créer une nouvelle partition.
+        - Attribuez 200 MB pour cette partition, et changez le type en EFI en appuyant sur `t`, puis choisissez le type `1` (EFI System).
+    - **Partition 2** : pour votre OS minimal
+        
+        - Appuyez sur `n` pour créer une deuxième partition.
+        - Attribuez 200 MB également pour celle-ci, et changez le type en `Linux root x86-64` (code 23).
+    - **Partition 3** : pour les fichiers VMware et le rapport final
+        
+        - Créez une troisième partition (appuyez sur `n`) et allouez l’espace restant de la clé USB pour cette partition.
+        - Modifiez le type en `Microsoft basic data` (code 11).
+4. **Vérifiez et enregistrez les modifications** : appuyez sur `w` pour écrire les changements et quitter `fdisk`.
+    
+### 2. Créer un système de fichiers et formater les partitions
+
+La partition ext4 stockera votre OS minimal Linux.
+La partition NTFS contiendra le rapport final et les fichiers VMware
+
+```bash
+#Installer les dependances
+emerge --ask dosfstools
+emerge --ask ntfs3g
+
+# Créer le système de fichiers 
+mkfs.fat -F 32 /dev/sdb1
+mkfs.ext4 /dev/sdb2
+mkfs.ntfs -f /dev/sdb3
+```
+
+> **Note importante** :
+> 
+> - Ne reformatez pas la clé dans Windows, car cela pourrait écraser la table de partitionnement GPT.
+> - Assurez-vous que votre noyau prend bien en charge NTFS en lecture/écriture pour permettre l’accès aux fichiers sur cette partition depuis Gentoo.
+
+
+Voici les étapes détaillées pour cette configuration du noyau et de Syslinux sur la clé USB :
+
+### 3. Copier le noyau et les fichiers nécessaires à Syslinux
+
+1. **Monter la partition UEFI** :
+    
+    ```bash
+    mount /dev/sdb1 /mnt
+    ```
+    
+2. **Créer le dossier nécessaire** :
+    
+    ```bash
+    mkdir -p /mnt/EFI/BOOT
+    ```
+
+3. **Copier le noyau et initrd** :
+    
+    - Téléchargez le noyau (fichier `vmlinuz`) et l'initrd (par exemple `initrd.img`) depuis l’école virtuelle vers votre machine, puis copiez-les dans `/mnt/EFI/BOOT`.
+    
+    ```bash
+    #Copier de votre machine hôte vers la vm
+    scp .\vmlinuz-6.2.0-32-generic root@192.168.80.134:/home
+    scp initrd.img-6.2.0-32-generic root@192.168.80.134:/home
+    #Copier dans le repertoire /EFI/BOOT
+    cp /path/to/vmlinuz /mnt/EFI/BOOT/
+    cp /path/to/initrd.img /mnt/EFI/BOOT/
+    ```
+    
+4. **Copier les fichiers Syslinux** :
+    
+    - Dans le dossier extrait de Syslinux, copiez `syslinux.efi`, `ldlinux.e64`, `ldlinux.c32`, et `ldlinux.sys` vers `/mnt/EFI/BOOT`.
+    
+    ```bash
+    cd /usr/src/syslinux-6.03
+    
+	cp ./efi64/efi/syslinux.efi /mnt/EFI/BOOT/bootx64.efi
+	cp ./efi64/com32/elflink/ldlinux/ldlinux.e64 /mnt/EFI/BOOT
+	cp ./bios/com32/elflink/ldlinux/ldlinux.c32 /mnt/EFI/BOOT
+	cp ./bios/core/ldlinux.sys /mnt/EFI/BOOT
+    ```
+    
+
+### 4. Créer le fichier `syslinux.cfg`
+
+Dans le dossier `/mnt/EFI/BOOT`, créez un fichier de configuration `syslinux.cfg` :
+
+```bash
+nano /mnt/EFI/BOOT/syslinux.cfg
+```
+
+Ajoutez les lignes suivantes, en remplaçant les champs selon votre configuration :
+
+```plaintext
+PROMPT 0
+TIMEOUT 10
+DEFAULT VOTRENOMDEFAMILLE
+
+LABEL VOTRENOMDEFAMILLE
+  LINUX /EFI/BOOT/vmlinuz
+  APPEND root=UUID=<UUID_de_sdb2> 
+  INITRD /EFI/BOOT/initrd.img
+```
+
+ 1. Obtenir l'UUID de la partition root (sdb2)
+
+	Utilisez la commande `blkid` pour obtenir l'UUID de `/dev/sdb2` :
+
+	```bash
+	blkid /dev/sdb2
+	```
+
+Copiez l'UUID obtenu et remplacez `<UUID_de_sdb2>` dans `syslinux.cfg` par cette valeur.
+
+###  5 : Copier le système racine sur la clé USB
+
+1. **Monter la partition root de la clé USB (sdb2)** :
+    
+    ```bash
+    mount /dev/sdb2 /mnt/cleusbpart1
+    
+    #Creer le repertoire si necessaire
+     mkdir -p /mnt/cleusbpart1
+    ```
+    
+2. **Copier le système racine** :
+    
+    - Utilisez la commande suivante pour copier de manière récursive et en conservant les permissions (`-a`), du système minimal que vous avez construit vers la clé USB :
+        
+        ```bash
+        cp -ra /mnt/monlinux/* /mnt/cleusbpart1/
+        ```
+        
+3. **Vérifier la copie** :
+    
+    - Assurez-vous que tous les fichiers et dossiers nécessaires (bin, etc, usr, etc.) sont bien présents sur la partition `/mnt/cleusbpart1`.
+4. **Démonter la clé USB** :
+    
+    - Une fois la copie terminée, démontez proprement la partition pour éviter toute corruption :
+        
+        ```bash
+        umount /mnt/cleusbpart1
+        ```
+        
+
+Après cette étape, votre clé USB devrait contenir votre système Linux minimal, avec la partition UEFI (sdb1) configurée pour démarrer le noyau via Syslinux, et la partition root (sdb2) contenant le système de fichiers.
+
+
+###  6 : Configuration après le démarrage 
+
+```bash
+ ip addr # pour identifier l'interface
+ ip link set eth0 up # pour ouvrir l'interface
+ udhcpc -i eth0 #Pour obtenir une adresse ip
+ ip addr add 192.168.175.10/24 dev eth0 # Attribuer l'adresse obtenu a ta machine
+ ip route add default 192.168.175.2 dev eth0
+```
+
+
